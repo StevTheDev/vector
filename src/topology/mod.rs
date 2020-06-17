@@ -449,7 +449,7 @@ impl RunningTopology {
     ) {
         let task = new_pieces.tasks.remove(name).unwrap();
         let span = info_span!("sink", name = %task.name(), r#type = %task.typetag());
-        let task = handle_errors(task.instrument(span), self.abort_tx.clone());
+        let task = handle_errors(task, self.abort_tx.clone()).instrument(span);
         let spawned = oneshot::spawn(task, &rt.executor());
         if let Some(previous) = self.tasks.insert(name.to_string(), spawned) {
             previous.forget();
@@ -464,7 +464,7 @@ impl RunningTopology {
     ) {
         let task = new_pieces.tasks.remove(name).unwrap();
         let span = info_span!("transform", name = %task.name(), r#type = %task.typetag());
-        let task = handle_errors(task.instrument(span), self.abort_tx.clone());
+        let task = handle_errors(task, self.abort_tx.clone()).instrument(span);
         let spawned = oneshot::spawn(task, &rt.executor());
         if let Some(previous) = self.tasks.insert(name.to_string(), spawned) {
             previous.forget();
@@ -479,8 +479,7 @@ impl RunningTopology {
     ) {
         let task = new_pieces.tasks.remove(name).unwrap();
         let span = info_span!("source", name = %task.name(), r#type = %task.typetag());
-
-        let task = handle_errors(task.instrument(span.clone()), self.abort_tx.clone());
+        let task = handle_errors(task, self.abort_tx.clone()).instrument(span.clone());
         let spawned = oneshot::spawn(task, &rt.executor());
         if let Some(previous) = self.tasks.insert(name.to_string(), spawned) {
             previous.forget();
@@ -490,7 +489,7 @@ impl RunningTopology {
             .takeover_source(name, &mut new_pieces.shutdown_coordinator);
 
         let source_task = new_pieces.source_tasks.remove(name).unwrap();
-        let source_task = handle_errors(source_task.instrument(span), self.abort_tx.clone());
+        let source_task = handle_errors(source_task, self.abort_tx.clone()).instrument(span);
         self.source_tasks.insert(
             name.to_string(),
             oneshot::spawn(source_task, &rt.executor()),
@@ -687,7 +686,7 @@ fn handle_errors(
         .map_err(|_| ())
         .flatten()
         .or_else(move |()| {
-            error!("An error occured that vector can't fix");
+            error!("An error occurred that vector couldn't handle.");
             let _ = abort_tx.unbounded_send(());
             Err(())
         })
